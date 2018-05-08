@@ -1,14 +1,14 @@
 import csv
 import json
-def readJson(filename):
-    with open(filename) as json_file:
+import os
+
+def readJson(symbol, kind, filename):
+    with open(symbol+'/'+filename) as json_file:
         data = json.load(json_file)
-        writeToCsv(filename,data)
+        writeToCsv(symbol, kind, filename,data)
            
-def writeToCsv(filename, datas):
-    filename.replace('.csv','.txt')
-    csvFile = filename[:-4]+'.csv'
-    print(csvFile)
+def writeToCsv(symbol, kind, filename, datas):
+    csvFile = getPath(symbol, kind, filename)
     for data in datas:
         symbol = data['rep']
         ts = data['ts']
@@ -31,7 +31,16 @@ def writeToCsv(filename, datas):
             writer = csv.writer(csv_file) 
             writer.writerow(line)
 
+def getPath(symbol, kind, filename):
+    csvFile = symbol + '/'+filename.split('_')[0] + '_'+symbol+'_'+kind+'.csv'
+    print(csvFile)
+    return csvFile
+
+def main(symbol,kind):
+    for filename in os.listdir(symbol):
+        readJson(symbol, kind, filename)
 
 if __name__ == '__main__':
-    path = 'ethusdt/2018-05-04_ethusdt.txt'
-    readJson(path)
+    symbol = 'ethusdt'
+    kind = 'market'
+    main(symbol, kind)
