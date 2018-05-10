@@ -8,38 +8,42 @@ import os,os.path
 import datetime
 import json
 import csv
+#from multiprocessing import Process
 import threading
 
 class huobi(threading.Thread):
-    NUMBER = 1
-    MAX_SIZE = 500000
-    def __init__(self,symbol,mType):
+    MAX_SIZE = 50000000
+    def __init__(self,symbols,mType):
         threading.Thread.__init__(self)
-        self.symbol = symbol
+        self.symbols = symbols
         self.mType = mType
-        self.now = str(datetime.datetime.now())
-        self.date = str(self.now)[:10]
+        date = self.getDateStr()
+        self.NUMBER = len([name for name in os.listdir(date) if os.path.isfile(os.path.join(date, name))])
     def mkdir(self,path):
         '''
         防止目录存在
         '''
         if not os.path.exists(path):
             os.mkdir(path)
+            self.NUMBER = 1
 
+            
     def increment(self):
-        global NUMBER
-        NUMBER = NUMBER+1
-    
-    def setNumber(self):
-        DIR = self.symbol
-        global NUMBER
-        NUMBER = len([name for name in os.listdir(DIR) if os.path.isfile(os.path.join(DIR, name))])
+        self.NUMBER = self.NUMBER + 1
+        
+    def getDateStr(self):
+        now = str(datetime.datetime.now())
+        date = str(now)[:10]
+        return date
             
     def getPath(self):
-        if(NUMBER < 10):
-            path = self.symbol+'/'+self.date+'/'+self.mType+'/huobi_'+self.symbol+'_'+self.mType+'_0'+str(NUMBER)+'.txt'
+        date = self.getDateStr()
+        self.mkdir(date)
+        
+        if(self.NUMBER < 10):
+            path = date+'/huobi_'+'_'+self.mType+'_0'+str(self.NUMBER)+'.txt'
         else:
-            path = self.symbol+'/'+self.date+'/'+self.mType+'/huobi_'+self.symbol+'_'+self.mType+'_'+str(NUMBER)+'.txt'
+            path = date+'/huobi_'+'_'+self.mType+'_'+str(self.NUMBER)+'.txt'
         return path
 
     def writeToJson(self, content):
@@ -61,10 +65,7 @@ class huobi(threading.Thread):
 
 
     def run(self):
-        self.mkdir(self.symbol)
-        self.mkdir(self.symbol+'/'+self.date)
-        self.mkdir(self.symbol+'/'+self.date+'/'+self.mType)
-        self.setNumber()
+        
         
         while(1):
             try:
@@ -76,52 +77,51 @@ class huobi(threading.Thread):
         
         # 订阅 KLine 数据
         #tradeStr="""{"sub": "market.ethusdt.kline.1min","id": "id10"}"""
-        tradeStr = ""
-        if(self.mType == 'market_depth'):
-            tradeStr="""{"sub": "market.%s.depth.step0", "id": "id10"}"""%(self.symbol)
-        elif(self.mType == 'trade_detail'):
-            tradeStr="""{"sub": "market.%s.trade.detail", "id": "id10"}"""%(self.symbol)
-        
-        # 请求 KLine 数据
-        # tradeStr="""{"req": "market.ethusdt.kline.1min","id": "id10", "from": 1513391453, "to": 1513392453}"""
-        
-        #订阅 Market Depth 数据
-        # tradeStr="""{"sub": "market.ethusdt.depth.step5", "id": "id10"}"""
-        
-        #请求 Market Depth 数据
-        # tradeStr="""{"req": "market.ethusdt.depth.step5", "id": "id10"}"""
-        
-        #订阅 Trade Detail 数据
-        # tradeStr="""{"sub": "market.ethusdt.trade.detail", "id": "id10"}"""
-        
-        #请求 Trade Detail 数据
-        # tradeStr="""{"req": "market.ethusdt.trade.detail", "id": "id10"}"""
-        
-        #请求 Market Detail 数据
-        # tradeStr="""{"req": "market.ethusdt.detail", "id": "id12"}"""
-        if(tradeStr):
-            ws.send(tradeStr)
-            while(1):
-                compressData=ws.recv()
-                result=gzip.decompress(compressData).decode('utf-8')
-                if result[:7] == '{"ping"':
-                    ts=result[8:21]
-                    pong='{"pong":'+ts+'}'
-                    ws.send(pong)
-                    ws.send(tradeStr)
-                else:
-                    #print(result)
-                    self.writeToJson(result)
-                #time.sleep(1)
-        else:
-            print('mType incorrect')
+        for symbol in self.symbols:
+            tradeStr = ""
+            if(self.mType == 'market_depth'):
+                tradeStr="""{"sub": "market.%s.depth.step0", "id": "id10"}"""%(symbol)
+            elif(self.mType == 'trade_detail'):
+                tradeStr="""{"sub": "market.%s.trade.detail", "id": "id10"}"""%(symbol)
+            
+            # 请求 KLine 数据
+            # tradeStr="""{"req": "market.ethusdt.kline.1min","id": "id10", "from": 1513391453, "to": 1513392453}"""
+            
+            #订阅 Market Depth 数据
+            # tradeStr="""{"sub": "market.ethusdt.depth.step5", "id": "id10"}"""
+            
+            #请求 Market Depth 数据
+            # tradeStr="""{"req": "market.ethusdt.depth.step5", "id": "id10"}"""
+            
+            #订阅 Trade Detail 数据
+            # tradeStr="""{"sub": "market.ethusdt.trade.detail", "id": "id10"}"""
+            
+            #请求 Trade Detail 数据
+            # tradeStr="""{"req": "market.ethusdt.trade.detail", "id": "id10"}"""
+            
+            #请求 Market Detail 数据
+            # tradeStr="""{"req": "market.ethusdt.detail", "id": "id12"}"""
+            if(tradeStr):
+                ws.send(tradeStr)
+            else:
+                print('mType incorrect')
+        while(1):
+            compressData=ws.recv()
+            result=gzip.decompress(compressData).decode('utf-8')
+            if result[:7] == '{"ping"':
+                ts=result[8:21]
+                pong='{"pong":'+ts+'}'
+                ws.send(pong)
+                ws.send(tradeStr)
+            else:
+                #print(result)
+                self.writeToJson(result)
+            #time.sleep(1)
 
 
 class huobiConverter(threading.Thread):
-    def __init__(self,symbol,mType):
+    def __init__(self):
         threading.Thread.__init__(self)
-        self.symbol = symbol
-        self.mType = mType
         now = str(datetime.datetime.now())
         self.date = str(now)[:10]
         
@@ -133,30 +133,40 @@ class huobiConverter(threading.Thread):
             os.mkdir(path)
             
     def addBracket(self,filename):
+        print('\n workind on : \n')
+        print(filename)
         with open(filename, 'r+') as f:
             content = f.read()
-            if(content[0] == "{"):
-                f.seek(0, 0)
-                f.write('[' + content+']')
+            with open(self.date+'/tmp.txt', 'w') as t:
+                if(content[0] == "{"):
+                    t.seek(0, 0)
+                    t.write('[' + content+']')
+                else:
+                    t.write(content)
+                t.close()
+            f.close()
             
     def readJson(self,filename):
-        path = self.symbol+'/'+self.date+'/'+self.mType+'/'+filename
+        path = self.date+'/'+filename
         self.addBracket(path)
-        with open(path) as json_file:
+        with open(self.date+'/tmp.txt') as json_file:
             data = json.load(json_file)
             self.writeToCsv(filename,data)
+            json_file.close()
+        os.remove(self.date+'/tmp.txt')
+        
+            
                
     def writeToCsv(self,filename, datas):
-        csvFile = self.getPath()
-        if(self.mType == 'market_depth'):
-            for data in datas:
-                if('id' not in data):
-                    symbol = data['ch']
+        for data in datas:
+            if('id' not in data):
+                ch = data['ch']
+                if('depth' in ch):
+                    symbol = ch.split(".")[1]
                     ts = data['ts']
                     line = []
-                    line.append(symbol.split(".")[1])
+                    line.append(symbol)
                     line.append(ts)
-                    
                     line.append('bid')
                     for bs in data['tick']['bids']:
                         for bid in bs:
@@ -166,79 +176,57 @@ class huobiConverter(threading.Thread):
                     for ass in data['tick']['asks']:
                         for ask in ass:
                             line.append(ask)
+                    
+                    csvFile = self.getPath(symbol,'market_depth')
                     with open(csvFile, "a", newline='') as csv_file:
                         writer = csv.writer(csv_file) 
                         writer.writerow(line)
-                    
-        elif(self.mType == 'trade_detail'):
-            for data in datas:
-                if('id' not in data):
-                    symbol = data['ch']
-                    newSym = symbol.split(".")[1]
+                elif('trade.detail' in ch):
+                    symbol = ch.split(".")[1]
                     ts = data['ts']
-                    
-                    
                     for trade in data['tick']['data']:
                         line = []
                         ts = trade['ts']
                         amount = trade['amount']
                         price = trade['price']
                         direction = trade['direction']
-                        line.append(newSym)
+                        line.append(symbol)
                         line.append(ts)
                         line.append(direction)
                         line.append(price)  
-                        line.append(amount)  
+                        line.append(amount) 
+                        csvFile = self.getPath(symbol,'trade_detail')
                         with open(csvFile, "a", newline='') as csv_file:
                             writer = csv.writer(csv_file) 
                             writer.writerow(line)
+
+                    
     
-    def getPath(self):
+    def getPath(self,symbol,mType):
         #csvFile = self.symbol + '/'+filename.split('_')[0] + '_huobi_'+self.symbol+'_'+self.mType+'.csv'
         self.mkdir('output')
-        csvFile = 'output/'+self.date + '_huobi_'+self.symbol+'_'+self.mType+'.csv'
+        csvFile = 'output/'+self.date + '_huobi_'+symbol+'_'+mType+'.csv'
         print(csvFile)
         return csvFile   
     
     def run(self):
-        for filename in os.listdir(self.symbol+'/'+self.date+'/'+self.mType):
+        for filename in os.listdir(self.date):
             self.readJson(filename)             
                 
 if __name__ == '__main__':
     downloadThreads = []   
     convertThreads = []
-    ethusdtSym = 'ethusdt'
-    btcusdtSym = 'btcusdt'
-    bchusdtSym = 'bchusdt'
-    etcusdtSym ='etcusdt'
-    ltcusdtSym ='ltcusdt'
-    
+    symbols = ['ethusdt','btcusdt','bchusdt','etcusdt','ltcusdt','eosusdt','xrpusdt','omgusdt','dashusdt','zecusdt','iotausdt','adausdt','steemusdt','bchbtc','ethbtc','ltcbtc','etcbtc','eosbtc','omgbtc','xrpbtc','dashbtc','zecbtc','iotabtc','adabtc','steembtc']
     marketDepth = 'market_depth'
     tradeDetail = 'trade_detail'
     
-    downloadThreads.append(huobi(ethusdtSym, marketDepth))
-    downloadThreads.append(huobi(btcusdtSym, marketDepth))
-    downloadThreads.append(huobi(bchusdtSym, marketDepth))
-    downloadThreads.append(huobi(etcusdtSym, marketDepth))
-    downloadThreads.append(huobi(ltcusdtSym, marketDepth))
+    a=huobi(symbols, marketDepth)
+    b=huobi(symbols, tradeDetail)
+
     
-    downloadThreads.append(huobi(ethusdtSym, tradeDetail))
-    downloadThreads.append(huobi(btcusdtSym, tradeDetail))
-    downloadThreads.append(huobi(bchusdtSym, tradeDetail))
-    downloadThreads.append(huobi(etcusdtSym, tradeDetail))
-    downloadThreads.append(huobi(ltcusdtSym, tradeDetail))
-    
-    convertThreads.append(huobiConverter(ethusdtSym, marketDepth))
-    convertThreads.append(huobiConverter(btcusdtSym, marketDepth))
-    convertThreads.append(huobiConverter(bchusdtSym, marketDepth))
-    convertThreads.append(huobiConverter(etcusdtSym, marketDepth))
-    convertThreads.append(huobiConverter(ltcusdtSym, marketDepth))
-    
-    convertThreads.append(huobiConverter(ethusdtSym, tradeDetail))
-    convertThreads.append(huobiConverter(btcusdtSym, tradeDetail))
-    convertThreads.append(huobiConverter(bchusdtSym, tradeDetail))
-    convertThreads.append(huobiConverter(etcusdtSym, tradeDetail))
-    convertThreads.append(huobiConverter(ltcusdtSym, tradeDetail))
+    downloadThreads.append(huobi(symbols, marketDepth))
+    downloadThreads.append(huobi(symbols, tradeDetail))
+    convertThreads.append(huobiConverter())
     
 # =============================================================================
 #     for dt in downloadThreads:
@@ -250,56 +238,5 @@ if __name__ == '__main__':
     
     for ct in convertThreads:
         ct.join()
-    
-# =============================================================================
-#     ethusdt.start()
-#     btcusdt.start()
-#     bchusdt.start()
-#     etcusdt.start()
-#     ltcusdt.start()
-# =============================================================================
-
-# =============================================================================
-#     huobiConverter(ethusdtSym, mType).run()
-#     huobiConverter(btcusdtSym, mType).run()
-#     huobiConverter(bchusdtSym, mType).run()
-#     huobiConverter(etcusdtSym, mType).run()
-#     huobiConverter(ltcusdtSym, mType).run()
-# =============================================================================
-    
-# =============================================================================
-#     try:
-#         ethusdt.start()
-#         threads.append(ethusdt)  
-#         btcusdt.start()
-#         threads.append(btcusdt)  
-#         bchusdt.start()
-#         threads.append(bchusdt)  
-#     except KeyboardInterrupt:
-#         for t in threads:  
-#             # 等待线程完成  
-#             t.join()  
-# =============================================================================
-# =============================================================================
-#     try:
-#         ethusdt.start()
-#         btcusdt.start()
-#     except KeyboardInterrupt:
-#         print ('Interrupted')
-#         ethusdt.addBracket(ethusdt.getPath())
-#         btcusdt.addBracket(btcusdt.getPath())
-#         ethusdt.join()
-#         btcusdt.join()
-#         try:
-#             sys.exit(0)
-#         except SystemExit:
-#             os._exit(0)
-# =============================================================================
-# =============================================================================
-#     converter = huobiConverter(symbol1, mType)
-#     converter.run()
-# =============================================================================
-    
         
-            
 
