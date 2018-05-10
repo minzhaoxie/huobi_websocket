@@ -8,10 +8,13 @@ import os,os.path
 import datetime
 import json
 import csv
-class huobi():
+import threading
+
+class huobi(threading.Thread):
     NUMBER = 1
-    MAX_SIZE = 50000
+    MAX_SIZE = 5000000
     def __init__(self,symbol,mType):
+        threading.Thread.__init__(self)
         self.symbol = symbol
         self.mType = mType
         
@@ -35,12 +38,13 @@ class huobi():
         now = str(datetime.datetime.now())
         symbol = self.symbol
         kind = self.mType
-        self.mkdir(symbol)
         name = str(now)[:10]
+        self.mkdir(symbol+'/'+name)
+        
         if(NUMBER < 10):
-            path = symbol+'/'+name+'_huobi_'+symbol+'_'+kind+'_0'+str(NUMBER)+'.txt'
+            path = symbol+'/'+name+'/huobi_'+symbol+'_'+kind+'_0'+str(NUMBER)+'.txt'
         else:
-            path = symbol+'/'+name+'_huobi_'+symbol+'_'+kind+'_'+str(NUMBER)+'.txt'
+            path = symbol+'/'+name+'/huobi_'+symbol+'_'+kind+'_'+str(NUMBER)+'.txt'
         return path
 
     def writeToJson(self, content):
@@ -49,7 +53,7 @@ class huobi():
         if(os.path.exists(path)):
             if(os.stat(path).st_size <= self.MAX_SIZE):
                 with open(path,'a') as f:
-                    print(content)
+                    print('wrote to {0}'.format(str(path)))
                     f.write(","+content)
             else:
                 self.increment()
@@ -57,13 +61,13 @@ class huobi():
                 
         else:
             with open(path,'a') as f:
-                print(content)
+                print('wrote to {0}'.format(str(path)))
                 f.write(content)
 
 
     def run(self):
         self.mkdir(self.symbol)
-        #self.setNumber()
+        self.setNumber()
         
         while(1):
             try:
@@ -96,16 +100,18 @@ class huobi():
         # tradeStr="""{"req": "market.ethusdt.detail", "id": "id12"}"""
         
         ws.send(tradeStr)
-
-        compressData=ws.recv()
-        result=gzip.decompress(compressData).decode('utf-8')
-        if result[:7] == '{"ping"':
-            ts=result[8:21]
-            pong='{"pong":'+ts+'}'
-            ws.send(pong)
-            ws.send(tradeStr)
-        else:
-            self.writeToJson(result) 
+        while(1):
+            compressData=ws.recv()
+            result=gzip.decompress(compressData).decode('utf-8')
+            if result[:7] == '{"ping"':
+                ts=result[8:21]
+                pong='{"pong":'+ts+'}'
+                ws.send(pong)
+                ws.send(tradeStr)
+            else:
+                self.writeToJson(result)
+            time.sleep(1)
+        
 
 
 class huobiConverter:
@@ -123,11 +129,12 @@ class huobiConverter:
     def addBracket(self,filename):
         with open(filename, 'r+') as f:
             content = f.read()
-            f.seek(0, 0)
-            f.write('[' + content+']')
+            if(content[0] == "{"):
+                f.seek(0, 0)
+                f.write('[' + content+']')
             
-    def readJson(self,filename):
-        path = self.symbol+'/'+filename
+    def readJson(self,filename,date):
+        path = self.symbol+'/'+date+'/'+filename
         self.addBracket(path)
         with open(path) as json_file:
             data = json.load(json_file)
@@ -151,8 +158,6 @@ class huobiConverter:
             for ass in data['data']['asks']:
                 for ask in ass:
                     line.append(ask)
-            
-            print(line)
             with open(csvFile, "a", newline='') as csv_file:
                 writer = csv.writer(csv_file) 
                 writer.writerow(line)
@@ -165,28 +170,39 @@ class huobiConverter:
         return csvFile   
     
     def run(self):
-        for filename in os.listdir(self.symbol):
-            self.readJson(filename)             
+        now = str(datetime.datetime.now())
+        date = str(now)[:10]
+        for filename in os.listdir(self.symbol+'/'+date):
+            self.readJson(filename,date)             
                 
 if __name__ == '__main__':
     threads = []   
-    symbol1 = 'ethusdt'
-    symbol2 = 'btcusdt'
-    symbol3 = 'bchusdt'
-    mType = 'depth'
-    ethusdt = huobi(symbol1, mType)
-    btcusdt = huobi(symbol2, mType)
-    bchusdt = huobi(symbol3, mType)
-    i = 10
-    while(i):
-        ethusdt.run()
-        btcusdt.run()
-        bchusdt.run()
-        i = i -1
+    ethusdtSym = 'ethusdt'
+    btcusdtSym = 'btcusdt'
+    bchusdtSym = 'bchusdt'
+    etcusdtSym ='etcusdt'
+    ltcusdtSym ='ltcusdt'
     
-    huobiConverter(symbol1, mType).run()
-    huobiConverter(symbol2, mType).run()
-    huobiConverter(symbol3, mType).run()
+    mType = 'depth'
+    ethusdt = huobi(ethusdtSym, mType)
+    btcusdt = huobi(btcusdtSym, mType)
+    bchusdt = huobi(bchusdtSym, mType)
+    etcusdt = huobi(etcusdtSym, mType)
+    ltcusdt = huobi(ltcusdtSym, mType)
+    
+# =============================================================================
+#     ethusdt.start()
+#     btcusdt.start()
+#     bchusdt.start()
+#     etcusdt.start()
+#     ltcusdt.start()
+# =============================================================================
+
+    huobiConverter(ethusdtSym, mType).run()
+    huobiConverter(btcusdtSym, mType).run()
+    huobiConverter(bchusdtSym, mType).run()
+    huobiConverter(etcusdtSym, mType).run()
+    huobiConverter(ltcusdtSym, mType).run()
     
 # =============================================================================
 #     try:
