@@ -8,9 +8,11 @@ import os,os.path
 import datetime
 #from multiprocessing import Process
 import threading
+import fnmatch
 
 class huobi(threading.Thread):
-    MAX_SIZE = 50000000
+    #100MB
+    MAX_SIZE = 100000000
     def __init__(self,symbols,mType):
         threading.Thread.__init__(self)
         #Process.__init__(self)
@@ -18,7 +20,7 @@ class huobi(threading.Thread):
         self.mType = mType
         date = self.getDateStr()
         self.mkdir(date)
-        self.NUMBER = len([name for name in os.listdir(date) if os.path.isfile(os.path.join(date, name))])
+        self.NUMBER = len(fnmatch.filter(os.listdir(date), '*'+mType+'*'))+1
     def mkdir(self,path):
         '''
         防止目录存在
@@ -32,7 +34,7 @@ class huobi(threading.Thread):
         self.NUMBER = self.NUMBER + 1
         
     def getDateStr(self):
-        now = str(datetime.datetime.now())
+        now = str(datetime.datetime.utcnow())
         date = str(now)[:10]
         return date
             
@@ -119,7 +121,12 @@ class huobi(threading.Thread):
                     self.writeToJson(result)
                 #time.sleep(1)
             except:
-                print("\n\n Error occured, disconnected!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! \n")
+                
+                with open('log.txt','a') as log:
+                    print("\n\n Error occured, disconnected!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! \n")
+                    log.write(str(datetime.datetime.now()))
+                    log.write("\n\n Error occured, disconnected!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! \n")
+                log.close()
                 self.run()
                 break
        
