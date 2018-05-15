@@ -6,9 +6,12 @@ import gzip
 import time
 import os,os.path
 import datetime
+from datetime import timedelta
 #from multiprocessing import Process
 import threading
 import fnmatch
+from csvConverter import huobiConverter 
+from sumCsv import sumCsv 
 
 class huobi(threading.Thread):
     #100MB
@@ -18,9 +21,10 @@ class huobi(threading.Thread):
         #Process.__init__(self)
         self.symbols = symbols
         self.mType = mType
-        date = self.getDateStr()
-        self.mkdir(date)
-        self.NUMBER = len(fnmatch.filter(os.listdir(date), '*'+mType+'*'))+1
+        mDate = self.getDateStr()
+        self.mkdir(mDate)
+        self.NUMBER = len(fnmatch.filter(os.listdir(mDate), '*'+mType+'*'))+1
+        
     def mkdir(self,path):
         '''
         防止目录存在
@@ -28,15 +32,38 @@ class huobi(threading.Thread):
         if not os.path.exists(path):
             os.mkdir(path)
             self.NUMBER = 1
+            self.convert()
+            
+            
+    def convert(self):
+        now = str(datetime.datetime.utcnow())
+        yesterday = str(now)[:10]
+        convertThreads = []
+        
+        convertThreads.append(huobiConverter(yesterday))
+        
+        for ct in convertThreads:
+            ct.start()
+        
+        for ct in convertThreads:
+            ct.join()
+        
+        newSum = sumCsv(yesterday)
+        DIR = 'output/'
+        for file in os.listdir(DIR):
+            if fnmatch.fnmatch(file, '*_trade_detail.csv'):
+                newSum.readCsv(DIR+file)
+            
+        
 
             
     def increment(self):
         self.NUMBER = self.NUMBER + 1
         
     def getDateStr(self):
-        now = str(datetime.datetime.utcnow())
-        date = str(now)[:10]
-        return date
+        now = str(datetime.datetime.utcnow()+timedelta(days=1))
+        mDate = str(now)[:10]
+        return mDate
             
     def getPath(self):
         date = self.getDateStr()
@@ -53,7 +80,6 @@ class huobi(threading.Thread):
         if(os.path.exists(path)):
             if(os.stat(path).st_size <= self.MAX_SIZE):
                 with open(path,'a') as f:
-                    print('wrote to {0}'.format(str(path)))
                     f.write(","+content)
             else:
                 self.increment()
@@ -61,7 +87,7 @@ class huobi(threading.Thread):
                 
         else:
             with open(path,'a') as f:
-                print('wrote to {0}'.format(str(path)))
+                print('writing to {0}'.format(str(path)))
                 f.write(content)
 
 
@@ -73,8 +99,14 @@ class huobi(threading.Thread):
                 ws = create_connection("wss://api.huobipro.com/ws")
                 break
             except:
-                print('connect ws error,retry...')
+                print(str(datetime.datetime.now())+' : connect ws error,retry...'+self.mType+'\n')
+                with open('log.txt','a') as log:
+                    
+                    log.write(str(datetime.datetime.now()))
+                    log.write(" : connect ws error,retry... "+self.mType+"\n")
+                log.close()
                 time.sleep(5)
+                self.run()
         
         # 订阅 KLine 数据
         #tradeStr="""{"sub": "market.ethusdt.kline.1min","id": "id10"}"""
@@ -123,9 +155,9 @@ class huobi(threading.Thread):
             except:
                 
                 with open('log.txt','a') as log:
-                    print("\n\n Error occured, disconnected!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! \n")
+                    print(str(datetime.datetime.now())+" : disconnected, re subscribing... "+self.mType+"\n")
                     log.write(str(datetime.datetime.now()))
-                    log.write("\n\n Error occured, disconnected!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! \n")
+                    log.write(" : disconnected, re subscribing... "+self.mType+"\n")
                 log.close()
                 self.run()
                 break

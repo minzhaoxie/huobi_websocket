@@ -1,5 +1,4 @@
 import os,os.path
-import datetime
 import json
 import csv
 from multiprocessing import Process
@@ -7,11 +6,10 @@ from multiprocessing import Process
 
 
 class huobiConverter(Process):
-    def __init__(self):
+    def __init__(self, mDate):
         #threading.Thread.__init__(self)
         Process.__init__(self)
-        now = str(datetime.datetime.now())
-        self.date = str(now)[:10]
+        self.date = mDate
         
     def mkdir(self,path):
         '''
@@ -115,4 +113,3 @@ if __name__ == '__main__':
     for ct in convertThreads:
         ct.join()
         
-
