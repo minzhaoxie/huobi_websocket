@@ -1,13 +1,11 @@
 import os.path
-
 from datetime import datetime
 import csv
 import fnmatch
 
 class sumCsv:
-    def __init__(self):
-        now = str(datetime.now())
-        self.date = str(now)[:10]
+    def __init__(self, date):
+        self.date = date
         
     def mkdir(self,path):
         '''
@@ -45,9 +43,14 @@ class sumCsv:
     def getHour(self,ts):
         return str(datetime.utcfromtimestamp(int(ts)/1e3).hour)
     
+    def getDateStr(self):
+        now = str(datetime.datetime.utcnow())
+        date = str(now)[:10]
+        return date
+    
     def writeToCsv(self,line):
         self.mkdir('output')
-        path = '2018-05-13_huobi_trade_detail_result.csv'
+        path = self.date+'_huobi_trade_detail_result.csv'
         if os.path.isfile(path):
             with open(path, "a", newline='') as csv_file:
                         writer = csv.writer(csv_file) 
